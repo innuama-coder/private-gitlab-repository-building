@@ -1,0 +1,27 @@
+stages:
+  - test
+  - build
+
+test:
+  stage: test
+  image: alpine:3.20
+  script:
+    - test -f current-task/six-elements.md
+    - test -f current-task/overall-solution.md
+    - test -f current-task/roadmap.md
+    - test -f current-task/related-environment.md
+    - printf 'document checks passed\n' | tee test-result.txt
+  artifacts:
+    when: always
+    paths:
+      - test-result.txt
+
+build:
+  stage: build
+  image: alpine:3.20
+  script:
+    - mkdir -p build
+    - tar -czf build/task-documents.tar.gz current-task artifacts
+  artifacts:
+    paths:
+      - build/task-documents.tar.gz
