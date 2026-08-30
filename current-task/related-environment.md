@@ -3,7 +3,7 @@ id: related-environment
 title: 相关环境
 document_kind: machine-readable-environment-brief
 language: zh-CN
-version: 1.0
+version: 1.1
 status: agreed
 source_of_truth: six-elements.md
 frozen_dependency: true

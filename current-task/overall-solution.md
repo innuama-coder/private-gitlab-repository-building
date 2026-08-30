@@ -3,13 +3,17 @@ id: overall-solution
 title: 总体方案
 document_kind: machine-readable-solution-brief
 language: zh-CN
-version: 3.1
+version: 3.2
 status: feasibility-reviewed
 source_of_truth: six-elements.md
 environment_reference: related-environment.md
 frozen_dependency: true
 feasibility: feasible-with-gates
 feasibility_gate: M1
+feasibility_gates:
+  - M1
+  - M3
+  - M5
 primary_node: Mac Studio
 public_entry_node: ECS4
 backup_node: to-be-determined-in-M5

@@ -3,7 +3,7 @@ id: roadmap
 title: 路线图
 document_kind: machine-readable-roadmap
 language: zh-CN
-version: 3.1
+version: 3.2
 status: feasibility-reviewed
 source_of_truth: six-elements.md
 environment_reference: related-environment.md
@@ -168,7 +168,7 @@ milestone_contract: six-elements
 - 验证 Mac Studio 没有直接公网 GitLab 端口。
 - 临时断开 Tailscale，确认公网入口明确失败；恢复后重新可用。
 
-通过门槛：正式域名的 Web、HTTPS Git 和 SSH Git 均通过，且入口链路无端口冲突，才能进入 M4。
+通过门槛：正式域名的 Web、HTTPS Git 和 SSH Git 均通过，ECS4 与家庭上行带宽满足首期规模，大流量 Git 转发成功且入口链路无端口冲突，才能进入 M4。
 
 ## M4. CI/CD 闭环可用
 
@@ -248,6 +248,7 @@ milestone_contract: six-elements
 
 ### 05. 交付物
 
+- 独立备份目标选择和可达性决策记录。
 - Mac Studio 定时备份配置。
 - 独立备份目标的接收目录、账号和权限配置。
 - 备份文件、校验记录和保留策略。
