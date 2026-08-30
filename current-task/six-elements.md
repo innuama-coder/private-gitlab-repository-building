@@ -3,19 +3,19 @@ id: gitlab-home-deployment-six-elements
 title: 家庭 GitLab 部署任务六要素
 document_kind: machine-readable-task-brief
 language: zh-CN
-version: 1.1
+version: 1.2
 status: frozen
 frozen_at: 2026-08-30
-freeze_note: "访问路径和验收要求补充后重新冻结，后续变更需要显式解冻。"
+freeze_note: "补充 ECS5 仅供自身使用的 Tailscale 直连路径后重新冻结，后续变更需要显式解冻。"
 human_review_sample: ../artifacts/gitlab-home-deployment-human-review-sample.zip
 architecture:
   primary_node: Mac Studio
   public_entry: ECS4
   private_network: Tailscale
   reverse_proxy: Caddy-or-Nginx
-  external_traffic_path: all-through-ECS4
+  external_traffic_path: public-through-ECS4; ecs5-direct-through-Tailscale
   secondary_node: ECS5
-  secondary_node_role: reserved-for-backup-or-secondary-runner
+  secondary_node_role: access-only-direct-agent
 ---
 
 # 家庭 GitLab 部署任务六要素
@@ -24,7 +24,7 @@ architecture:
 
 ### 目标陈述
 
-在家里的 Mac Studio 上建立一套可长期使用的 GitLab，提供代码托管、协作评审和基础 CI/CD 能力；所有外部 Web、HTTPS Git 和 SSH Git 流量统一经过 ECS4 公网入口，再通过 Tailscale 连接到 Mac Studio，Mac Studio 不直接暴露在公网。
+在家里的 Mac Studio 上建立一套可长期使用的 GitLab，提供代码托管、协作评审和基础 CI/CD 能力；公网用户的 Web、HTTPS Git 和 SSH Git 流量统一经过 ECS4 公网入口，再通过 Tailscale 连接到 Mac Studio，Mac Studio 不直接暴露在公网。已授权的 ECS5 只为自身 Git 操作增加 Tailscale 点对点直连，不改变公网访问路径。
 
 ### 能力范围
 
@@ -40,8 +40,9 @@ architecture:
 2. 在 Mac Studio 上部署 GitLab 和 Runner。
 3. 在 Mac Studio 与 ECS4 之间建立 Tailscale 私网连接。
 4. 在 ECS4 上配置 Caddy 或 Nginx，将所有外部 Web、HTTPS Git 和 SSH Git 请求转发到 Mac Studio。
-5. 配置 HTTPS、Git over HTTPS，以及标准 SSH 克隆和推送。
-6. 创建示例仓库，验证测试、构建、制品保存、备份和恢复。
+5. 在 ECS5 上配置 Tailscale 直连 Mac Studio，并让 ECS5 使用自己的 GitLab 账号和密钥访问 GitLab。
+6. 配置 HTTPS、Git over HTTPS，以及标准 SSH 克隆和推送。
+7. 创建示例仓库，验证测试、构建、制品保存、备份和恢复。
 
 ### 工作原则
 
@@ -57,6 +58,7 @@ architecture:
 - 一个主要 GitLab Runner。
 - ECS4 公网入口。
 - 所有外部 Web、HTTPS Git 和 SSH Git 流量经 ECS4 转发。
+- ECS5 自身通过 Tailscale 直连 Mac Studio 的 Git SSH 访问。
 - HTTPS、SSH 和 HTTPS Git 访问。
 - 基础备份与恢复验证。
 - 个人或小团队使用所需的仓库、权限、Issue 和 Merge Request。
@@ -73,11 +75,11 @@ architecture:
 
 - Mac Studio 必须保持接电、联网，并关闭系统自动睡眠。
 - 网络中断后，相关容器和服务应能自动恢复。
-- 所有外部访问依赖 ECS4 公网 IP、域名解析和 Tailscale；ECS4 停机会导致公网入口和 Git 数据访问不可用。
-- ECS4 只做流量转发，不保存或缓存 GitLab 仓库、制品和备份数据；大流量 Git 操作必须验证流式转发能力。
+- 公网访问依赖 ECS4 公网 IP、域名解析和 Tailscale；ECS4 停机会导致公网入口不可用，但不阻断已授权 ECS5 的 Tailscale 直连。
+- ECS4 只做公网流量转发，不保存或缓存 GitLab 仓库、制品和备份数据；经 ECS4 的大流量 Git 操作必须验证流式转发能力。
 - Mac Studio 使用 Apple Silicon；CI 镜像优先使用 ARM64，使用 amd64 时必须显式验证兼容性。
 - GitLab 仓库数据保存在 Mac Studio；备份必须复制到另一处，不能只保存在同一块硬盘。
-- ECS5 首期不参与部署，保留作备份机或第二个 Runner 的候选节点。
+- ECS5 只作为已授权的 GitLab 私网访问节点，不运行 GitLab 核心服务、不作为备份目标、不承担公网入口，也不改变 ECS4 的职责。
 
 ### 已确认条件
 
@@ -85,6 +87,7 @@ architecture:
 - Mac Studio：64GB 内存。
 - Mac Studio：约 736GB 可用磁盘。
 - Mac Studio：已能通过 Tailscale SSH 访问，Tailscale 地址为 `100.65.102.93`。
+- ECS5：Tailscale 地址为 `100.68.48.115`，已能 direct 连接 Mac Studio 的 `2222/tcp`。
 
 ## 05. 交付物
 
@@ -111,6 +114,7 @@ architecture:
 
 - 创建私有项目。
 - 通过 SSH 完成 `clone`、`push`、`pull`。
+- ECS5 通过 Tailscale 直连完成 GitLab SSH `clone`、`push`、`pull`，且不经过 ECS4。
 - 通过 HTTPS 完成 `clone`、`push`、`pull`。
 - 测试账号只能访问被授权的项目。
 

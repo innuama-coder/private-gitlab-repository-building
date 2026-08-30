@@ -3,7 +3,7 @@ id: roadmap
 title: 路线图
 document_kind: machine-readable-roadmap
 language: zh-CN
-version: 3.2
+version: 3.3
 status: feasibility-reviewed
 source_of_truth: six-elements.md
 environment_reference: related-environment.md
@@ -22,7 +22,7 @@ milestone_contract: six-elements
 - 任何验收不通过时，停在当前里程碑修复，不跨步堆积问题。
 - 每个里程碑都完整使用六要素：目标、工作方法、边界、约束、交付物、验收标准与方法。
 - 六要素已经冻结；若实施中需要改变目标、边界或验收，必须先显式解冻。
-- 外部 Web、HTTPS Git 和 SSH Git 流量统一经过 ECS4；Tailscale 只承担 ECS4 与 Mac Studio 之间的私网链路。
+- 公网 Web、HTTPS Git 和 SSH Git 流量经过 ECS4；ECS5 自身的 Git SSH 流量通过 Tailscale 直连 Mac Studio，不改变公网链路。
 
 ## M1. 节点与运行基础可行
 
@@ -130,12 +130,14 @@ milestone_contract: six-elements
 4. 为 Git SSH 选择独立端口，或配置已验证的 SSH 转发规则。
 5. 将 GitLab 外部 URL 切换到正式域名。
 6. 配置流式转发，确保大流量 Git 请求和响应不落盘、不缓存。
-7. 从不在家庭网络中的客户端完成 Web 和 Git 操作。
+7. 在 ECS5 安装 Tailscale，配置其专属 GitLab SSH 身份直连 Mac Studio。
+8. 从不在家庭网络中的客户端完成 Web 和 Git 操作，并从 ECS5 完成一次私网 Git 操作。
 
 ### 03. 边界
 
 - 包含：正式域名、HTTPS、Web、HTTPS Git、SSH Git、ECS4 反向代理和流式转发。
 - 不包含：CI/CD 流水线、备份恢复和入口高可用。
+- ECS5 直连只包含 ECS5 自身的 Git SSH 访问，不包含公网 Web 入口或备份职责。
 - 不把 ECS4 的管理员 SSH 与 Git SSH 端口冲突留到后续处理。
 
 ### 04. 约束
@@ -144,7 +146,7 @@ milestone_contract: six-elements
 - Mac Studio 不做家庭路由器端口映射。
 - Git SSH 的实际端口必须写入访问说明并真实验证。
 - 证书申请和续期不能依赖人工临时操作。
-- 用户端不要求安装 Tailscale；ECS4 到 Mac Studio 的 Tailscale 链路必须稳定。
+- 公网用户端不要求安装 Tailscale；ECS4 到 Mac Studio 的 Tailscale 链路必须稳定，ECS5 到 Mac Studio 的 Tailscale 链路必须可独立使用。
 - ECS4 不得缓存或落盘 Git 请求体、响应体和仓库数据。
 - 必须记录 ECS4 公网带宽和家庭上行带宽的实测结果，确认它们满足首期使用规模。
 
@@ -156,6 +158,7 @@ milestone_contract: six-elements
 - 管理 SSH 与 Git SSH 的端口分工记录。
 - ECS4 公网带宽、家庭上行带宽和大流量转发测试记录。
 - 外部访问测试记录。
+- ECS5 Tailscale 节点、Git SSH 直连配置和私网访问记录。
 
 ### 06. 验收标准与方法
 
@@ -166,6 +169,7 @@ milestone_contract: six-elements
 - 使用包含较大文件的测试仓库完成一次 HTTPS 和 SSH 的 `clone`、`push`、`pull`，确认流量经 ECS4 转发且操作不因超时或缓存失败。
 - 记录转发过程的吞吐、错误率、超时和 ECS4 资源使用情况。
 - 验证 Mac Studio 没有直接公网 GitLab 端口。
+- 从 ECS5 通过 Tailscale 直接完成 GitLab SSH `clone`、`push`、`pull`，并确认未经过 ECS4。
 - 临时断开 Tailscale，确认公网入口明确失败；恢复后重新可用。
 
 通过门槛：正式域名的 Web、HTTPS Git 和 SSH Git 均通过，ECS4 与家庭上行带宽满足首期规模，大流量 Git 转发成功且入口链路无端口冲突，才能进入 M4。
@@ -178,6 +182,15 @@ milestone_contract: six-elements
 - HTTPS Git：临时私有项目完成 push、clone、pull。
 - SSH Git：经公网 `2222/tcp` 完成 clone、push、pull。
 - 大流量 Git：临时项目传输 8 MiB 文件并完成两种协议的读取验证。
+
+### M3 ECS5 私网直连验收记录（2026-08-30）
+
+- Tailscale：ECS5 节点 `ecs5-gitlab-agent`，地址 `100.68.48.115`，已加入现有 tailnet。
+- 点对点链路：ECS5 到 Mac Studio `100.65.102.93` 的 `tailscale ping` 显示 direct 路径。
+- Git SSH：Mac Studio `2222/tcp` 可从 ECS5 Tailscale 地址访问。
+- 身份：使用独立账号 `agent-ecs5` 和独立 Ed25519 密钥。
+- 实际操作：完成临时 Project 的 direct `clone` 和分支 `push`。
+- ECS4：公网域名和公网 SSH 入口未修改，仍保持原有职责。
 - Tailscale：ECS4 到 Mac Studio 验证为直连，未走 DERP。
 - 结果：M3 验收通过。
 

@@ -17,7 +17,7 @@ feasibility_gates:
 primary_node: Mac Studio
 public_entry_node: ECS4
 backup_node: roymacbook-pro
-deferred_node: ECS5
+access_only_node: ECS5
 private_network: Tailscale
 ---
 
@@ -38,7 +38,7 @@ M3 也是公网访问门槛。只有在 ECS4 的带宽、端口、HTTPS、Web、
 | 代码托管 | Mac Studio 运行单节点 GitLab，数据保存到独立持久化目录 | 私有项目、仓库和重启后数据 |
 | 协作评审 | GitLab 项目权限、Issue 和 Merge Request | 测试账号权限记录、评审记录 |
 | CI/CD | GitLab Runner 执行 ARM64 优先的示例流水线 | 成功/失败/重跑日志、制品 |
-| 外部访问 | 所有外部 Web、HTTPS Git 和 SSH Git 流量经 ECS4 公网反向代理，再经 Tailscale 转发到 Mac Studio | 域名、证书、SSH/HTTPS Git 记录和转发验证 |
+| 外部访问 | 公网用户的 Web、HTTPS Git 和 SSH Git 流量经 ECS4 公网反向代理；ECS5 自身通过 Tailscale 直连 Mac Studio | 域名、证书、SSH/HTTPS Git 记录和两条链路验证 |
 | 可恢复运行 | GitLab 备份复制到 M5 内确定的独立备份目标，执行恢复和重启演练 | 备份文件、校验、恢复结果 |
 
 ## 03. 部署拓扑
@@ -54,6 +54,11 @@ Mac Studio
   |-- GitLab Web / Git HTTPS / Git SSH
   |-- GitLab Runner
   |-- GitLab 持久化数据
+
+ECS5 Agent
+  |  Tailscale 点对点
+  v
+Mac Studio GitLab SSH
 ```
 
 ## 04. 节点职责
@@ -79,9 +84,17 @@ Mac Studio 已确认具备 24 核 CPU、64GB 内存和约 736GB 可用磁盘，�
 
 ECS4 的管理员 SSH 和 Git SSH 必须分离：优先保留 22 端口用于管理，Git 使用独立端口并在域名或 Git 配置中声明；若使用同一端口，必须使用已经验证的 SSH 转发方案，不得靠未验证的端口复用假设交付。
 
+### ECS5：访问专用节点
+
+- 在 ECS5 安装 Tailscale，并加入与 Mac Studio、ECS4 相同的 tailnet。
+- 只为 ECS5 自身 Agent 提供 GitLab SSH 私网直连。
+- 使用 ECS5 专属 GitLab 账号和 Ed25519 密钥，不与其他环境共用身份。
+- 不运行 GitLab 核心服务、Runner 或备份服务。
+- 不替代 ECS4 的公网入口，也不改变公网用户的访问路径。
+
 ### 备份目标：roymacbook-pro
 
-- ECS5 暂不引入，不作为首期备份节点。
+- ECS5 不作为备份节点；它只提供自身 Agent 的 GitLab 私网直连。
 - `roymacbook-pro` 作为正式远端备份目标，Tailscale 地址为 `100.126.98.93`，接收目录为 `/Users/royzuo/gitlab-backups`。
 - Mac Studio 使用专用 Ed25519 密钥，通过 Tailscale SSH 复制；接收目录仅允许目标用户访问。
 - Mac Studio 的 4TB LaCie 外置磁盘可保留为人工复制作业的本地第二副本，不承担唯一备份职责，也不阻断正式定时链路。
@@ -93,11 +106,12 @@ ECS4 的管理员 SSH 和 Git SSH 必须分离：优先保留 22 端口用于管
 
 ### 私网连接
 
-1. Mac Studio 和 ECS4 加入同一个 Tailscale 网络。
+1. Mac Studio、ECS4 和 ECS5 加入同一个 Tailscale 网络。
 2. 使用稳定的 Tailscale 地址或 MagicDNS 名称作为上游地址。
-3. ECS4 将所有外部 Web、HTTPS Git 和 Git SSH 请求转发到 Mac Studio，不使用家庭路由器端口映射。
-4. 备份链路不经过公网入口代理。
-5. Tailscale ACL 只允许节点之间访问所需端口。
+3. ECS4 将公网 Web、HTTPS Git 和 Git SSH 请求转发到 Mac Studio，不使用家庭路由器端口映射。
+4. ECS5 将自身 Git SSH 请求直接发送到 Mac Studio，不经过 ECS4。
+5. 备份链路不经过公网入口代理。
+6. Tailscale ACL 只允许节点之间访问所需端口。
 
 ### Web 与 Git
 
@@ -106,7 +120,7 @@ ECS4 的管理员 SSH 和 Git SSH 必须分离：优先保留 22 端口用于管
 - GitLab 外部 URL 固定使用正式域名，不使用公网 IP 作为长期地址。
 - HTTPS Git 使用 GitLab 标准 HTTPS 入口。
 - SSH Git 使用独立端口，例如 `git clone ssh://git@domain:2222/group/project.git`；最终端口以 M3 的实际验证结果为准。
-- 用户端不需要安装 Tailscale；Tailscale 只运行在 ECS4 与 Mac Studio 之间。
+- 公网用户端不需要安装 Tailscale；ECS5 作为访问专用节点运行 Tailscale。
 - 正式域名、Let's Encrypt HTTPS、HTTPS Git 和 Git SSH 已通过公网验收；Git SSH 使用 ECS4 `2222/tcp`。
 
 ### 安全边界

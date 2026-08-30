@@ -3,13 +3,15 @@ id: related-environment
 title: 相关环境
 document_kind: machine-readable-environment-brief
 language: zh-CN
-version: 1.3
+version: 1.4
 status: agreed
 source_of_truth: six-elements.md
 frozen_dependency: true
 execution_targets:
   - Mac Studio
   - ECS4
+access_only_environments:
+  - ECS5
 ---
 
 # 相关环境
@@ -20,11 +22,14 @@ execution_targets:
 | --- | --- | --- | --- |
 | Mac Studio | 家庭主节点 | GitLab、主要 Runner、仓库数据 | 是 |
 | ECS4 | 公网入口节点 | Caddy/Nginx、HTTPS、Git 访问转发 | 否，不保存仓库数据 |
+| ECS5 | 私网访问节点 | 仅为自身 Agent 提供 GitLab Tailscale 直连 | 否，不运行核心服务 |
 
 Mac Studio 和 ECS4 通过 Tailscale 组成私网。公网用户只访问 ECS4，ECS4 再把请求转发到 Mac Studio。
+ECS5 作为已授权的访问节点，通过 Tailscale 直接访问 Mac Studio；它不是公网入口、核心服务节点或备份目标。
 
 ```text
 外部用户 -> ECS4 公网入口 -> Tailscale -> Mac Studio GitLab
+ECS5 Agent -> Tailscale 点对点 -> Mac Studio GitLab
 ```
 
 ## 02. Mac Studio
@@ -101,15 +106,40 @@ Mac Studio 和 ECS4 通过 Tailscale 组成私网。公网用户只访问 ECS4�
 - Tailscale 到 Mac Studio 当前可直连；公网访问仍必须经过 ECS4。
 - 云安全组已放行 `80/tcp`、`443/tcp` 和 `2222/tcp`；`22/tcp` 保持管理用途。
 
-## 04. 备份环境状态
+## 04. ECS5
 
-- 首期不引入 ECS5 或其他额外执行节点。
+### 执行定位
+
+- 访问专用节点，不是 GitLab 部署目标。
+- 只为 ECS5 上的 Agent 提供 GitLab 私网访问。
+- 不运行 GitLab、Runner 或备份服务。
+- 不替代 ECS4 的公网入口。
+
+### 已确认环境
+
+- 系统：Ubuntu `26.04`，x86_64。
+- Tailscale 地址：`100.68.48.115`，节点名 `ecs5-gitlab-agent`。
+- Mac Studio Tailscale 地址：`100.65.102.93`。
+- Tailscale `ping` 已显示到 Mac Studio 的 direct 路径。
+- Mac Studio GitLab SSH `2222/tcp` 已从 ECS5 直连验证。
+- ECS5 使用独立 GitLab 账号 `agent-ecs5` 和独立 Ed25519 密钥。
+
+### 环境边界
+
+- 只允许访问 Mac Studio GitLab 所需的 Tailscale 端口。
+- 不承担公网 Web、HTTPS Git 或公网 SSH Git 入口。
+- 不作为 GitLab 仓库、制品或备份数据的存储位置。
+- ECS5 的直连配置不改变 ECS4 的公网代理配置。
+
+## 05. 备份环境状态
+
+- ECS5 不作为备份节点；它只提供自身 Agent 的 GitLab 私网直连。
 - `roymacbook-pro` 已确定为正式远端备份目标，Tailscale 地址为 `100.126.98.93`，接收目录为 `/Users/royzuo/gitlab-backups`。
 - Mac Studio 使用专用 Ed25519 备份密钥，通过 Tailscale SSH 和受限密钥选项复制备份；MacBook 目录权限为仅用户可读写。
 - LaCie 可作为人工复制作业的本地第二副本，挂载点为 `/Volumes/LaCie`，可用空间约 2.0TB；正式定时链路不依赖它。
 - 远端备份已完成 SHA-256 对比，并在 MacBook 上从备份恢复项目 bundle、执行 `git fsck` 和读取提交记录。
 
-## 05. 非执行环境
+## 06. 非执行环境
 
 ### 本地控制环境
 
@@ -128,7 +158,7 @@ Mac Studio 和 ECS4 通过 Tailscale 组成私网。公网用户只访问 ECS4�
 - ECS4 上原有的 `agent-*` 容器、Compose 配置和 Docker 数据不属于首期 GitLab 交付物。
 - 若执行恢复出厂或清理操作，只清理上述历史环境，不影响本地 SSH 私钥和本仓库文档。
 
-## 06. 执行目标与路线图对应
+## 07. 执行目标与路线图对应
 
 | 里程碑 | 执行环境 | 主要结果 |
 | --- | --- | --- |
@@ -139,10 +169,10 @@ Mac Studio 和 ECS4 通过 Tailscale 组成私网。公网用户只访问 ECS4�
 | M5 | Mac Studio、roymacbook-pro；LaCie 为本地副本 | 备份、复制、校验和恢复可用 |
 | M6 | 当前全部执行目标及最终确认的备份目标 | 全链路验收和正式交付 |
 
-## 07. 环境使用规则
+## 08. 环境使用规则
 
 - 先验证环境，再在对应环境部署职责范围内的服务。
 - 任何节点改变角色，都必须先更新总体方案和路线图，并重新检查冻结六要素。
-- 只有 Mac Studio 和 ECS4 被列为当前执行目标；其他机器不作为隐含依赖。
+- 只有 Mac Studio 和 ECS4 被列为核心执行目标；ECS5 已明确列为访问专用节点，不作为核心服务或备份的隐含依赖。
 - `roymacbook-pro` 是正式远端备份目标，LaCie 是本地第二副本；ECS5 不作为备份目标。
 - 环境地址、端口、版本和运行模式以实际验收记录为准，不以历史探测结果代替验收证据。
