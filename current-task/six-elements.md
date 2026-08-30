@@ -4,7 +4,9 @@ title: 家庭 GitLab 部署任务六要素
 document_kind: machine-readable-task-brief
 language: zh-CN
 version: 1.0
-status: agreed
+status: frozen
+frozen_at: 2026-08-30
+freeze_note: "六要素经确认后冻结，后续变更需要显式解冻。"
 human_review_sample: ../artifacts/gitlab-home-deployment-human-review-sample.zip
 architecture:
   primary_node: Mac Studio
@@ -130,4 +132,3 @@ architecture:
 - 保留 SSH 与 HTTPS Git 操作记录。
 - 保留流水线编号、日志和制品记录。
 - 保留备份文件位置与恢复结果。
-
