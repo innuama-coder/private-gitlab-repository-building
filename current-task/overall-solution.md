@@ -3,7 +3,7 @@ id: overall-solution
 title: 总体方案
 document_kind: machine-readable-solution-brief
 language: zh-CN
-version: 3.2
+version: 3.3
 status: feasibility-reviewed
 source_of_truth: six-elements.md
 environment_reference: related-environment.md
@@ -16,7 +16,7 @@ feasibility_gates:
   - M5
 primary_node: Mac Studio
 public_entry_node: ECS4
-backup_node: to-be-determined-in-M5
+backup_node: LaCie-external-disk-provisional; remote-target-required-for-host-fault-domain
 deferred_node: ECS5
 private_network: Tailscale
 ---
@@ -79,13 +79,14 @@ Mac Studio 已确认具备 24 核 CPU、64GB 内存和约 736GB 可用磁盘，�
 
 ECS4 的管理员 SSH 和 Git SSH 必须分离：优先保留 22 端口用于管理，Git 使用独立端口并在域名或 Git 配置中声明；若使用同一端口，必须使用已经验证的 SSH 转发方案，不得靠未验证的端口复用假设交付。
 
-### 备份目标：M5 内确定
+### 备份目标：LaCie 候选，远端目标待补充
 
 - ECS5 暂不引入，不作为首期备份节点。
-- 在 M5 内确定一个独立于 Mac Studio 的备份目标。
-- 备份目标必须支持专用账号、最小权限、校验、保留和恢复测试。
+- Mac Studio 已确认有 4TB LaCie 外置磁盘，备份可复制、校验和恢复；它是独立物理介质，但与 Mac Studio 共用主机。
+- 若验收要求主机级故障域隔离，M5 还必须补充云对象存储或其他远端备份目标。
+- 正式备份目标必须支持专用账号、最小权限、校验、保留和恢复测试。
 
-备份目标确定后，必须补充地址、访问链路、容量和恢复记录，才能满足“备份必须离开主节点保存”的冻结约束。
+正式备份目标确定后，必须补充地址、访问链路、容量和恢复记录，才能满足“备份必须离开主节点保存”的冻结约束。
 
 ## 05. 网络与访问实现
 
@@ -133,7 +134,7 @@ ECS4 的管理员 SSH 和 Git SSH 必须分离：优先保留 22 端口用于管
 ### 备份与恢复
 
 - 每日执行 GitLab 备份，保留多个历史版本。
-- 通过受限链路复制到 M5 内确定的独立备份目标。
+- 当前先复制到 LaCie；正式交付前再复制到与 Mac Studio 故障域分离的远端目标。
 - 每份备份记录时间、版本、大小和校验结果。
 - 定期恢复测试项目，确认备份能被读取和实际使用。
 - 单独保存入口配置和恢复步骤，避免只备份 GitLab 数据而无法重建访问入口。

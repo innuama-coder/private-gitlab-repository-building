@@ -3,7 +3,7 @@ id: related-environment
 title: 相关环境
 document_kind: machine-readable-environment-brief
 language: zh-CN
-version: 1.1
+version: 1.2
 status: agreed
 source_of_truth: six-elements.md
 frozen_dependency: true
@@ -43,9 +43,11 @@ Mac Studio 和 ECS4 通过 Tailscale 组成私网。公网用户只访问 ECS4�
 - 架构：Apple Silicon。
 - CPU：24 核。
 - 内存：64GB。
-- 磁盘：约 926GiB，总可用空间约 736GB（检查时）。
+- 内置磁盘：约 926GiB，检查时可用约 736GB。
+- 外置磁盘：`LaCie`，4TB HFS+，检查时可用约 2.0TB；作为备份候选目标。
 - Tailscale 地址：`100.65.102.93`。
 - Tailscale 名称：`roymac-studio`。
+- Docker Desktop：4.44.2，Linux ARM64，GitLab CE 与 ARM64 Runner 正常运行。
 
 ### 执行前状态
 
@@ -75,6 +77,11 @@ Mac Studio 和 ECS4 通过 Tailscale 组成私网。公网用户只访问 ECS4�
 - 系统：Ubuntu `26.04`。
 - 资源：4 vCPU、7.1GiB 内存、59G 根盘。
 - 磁盘可用空间：约 46G（检查时）。
+- Tailscale 地址：`100.100.85.86`，节点名 `ecs4-gitlab-gateway`。
+- Nginx `1.28.3` 已部署；HTTP 反代与 Git SSH TCP 转发配置已加载。
+- ECS4 到 Mac Studio 的 Tailscale 上游当前为直连，未走 DERP。
+- 公网状态：`80/tcp` 已可达；`443/tcp` 尚未监听；`2222/tcp` 已在 Nginx 监听但被云安全组过滤。
+- `git.whale-smart.com` 当前尚无 DNS A 记录，目标记录为 `39.105.43.18`。
 
 ### 首期部署内容
 
@@ -90,13 +97,16 @@ Mac Studio 和 ECS4 通过 Tailscale 组成私网。公网用户只访问 ECS4�
 - 不保存 GitLab 仓库、数据库或制品。
 - 管理 SSH 与 Git SSH 必须使用不冲突的端口规则。
 - 公网只开放验收所需端口。
+- Tailscale 到 Mac Studio 当前可直连；公网访问仍必须经过 ECS4。
+- 云安全组还需放行 `443/tcp` 和 `2222/tcp`；`80/tcp` 已放行，`22/tcp` 保持管理用途。
 
 ## 04. 备份环境状态
 
-- 首期不引入额外执行节点。
-- 冻结六要素仍要求备份离开 Mac Studio 保存。
-- 独立备份目标必须在 M5 内确定并完成验收。
-- 备份目标确定前，不能把备份与恢复能力标记为已交付。
+- 首期不引入 ECS5 或其他额外执行节点。
+- 已确认 `LaCie` 外置磁盘可用，挂载点为 `/Volumes/LaCie`，可用空间约 2.0TB。
+- GitLab 备份已能复制到 `/Volumes/LaCie/gitlab-backups`，并完成 SHA-256 校验与项目 bundle 恢复验证。
+- LaCie 与 Mac Studio 共用主机，属于独立物理介质，但不是独立主机故障域；正式容灾目标若要求主机级隔离，仍需在 M5 补充云对象存储或其他远端目标。
+- 在正式目标满足冻结约束前，备份能力只能标记为“已验证候选”，不能宣称完整容灾交付。
 
 ## 05. 非执行环境
 
@@ -125,13 +135,13 @@ Mac Studio 和 ECS4 通过 Tailscale 组成私网。公网用户只访问 ECS4�
 | M2 | Mac Studio | GitLab 核心服务可用 |
 | M3 | ECS4、Mac Studio | 公网 Web、HTTPS Git、SSH Git 可用 |
 | M4 | Mac Studio | GitLab Runner 和 CI/CD 可用 |
-| M5 | Mac Studio、待确定的独立备份目标 | 备份、复制、校验和恢复可用 |
-| M6 | 当前全部执行目标及已确认的备份目标 | 全链路验收和正式交付 |
+| M5 | Mac Studio、LaCie 外置磁盘；远端目标待补充 | 备份、复制、校验和恢复可用 |
+| M6 | 当前全部执行目标及最终确认的备份目标 | 全链路验收和正式交付 |
 
 ## 07. 环境使用规则
 
 - 先验证环境，再在对应环境部署职责范围内的服务。
 - 任何节点改变角色，都必须先更新总体方案和路线图，并重新检查冻结六要素。
 - 只有 Mac Studio 和 ECS4 被列为当前执行目标；其他机器不作为隐含依赖。
-- 备份目标在 M5 内单独确认，不把未确认的机器作为默认目标。
+- LaCie 是当前已验证候选，不把 ECS5 作为备份目标；正式远端目标仍需单独确认。
 - 环境地址、端口、版本和运行模式以实际验收记录为准，不以历史探测结果代替验收证据。
