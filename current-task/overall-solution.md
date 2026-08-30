@@ -12,7 +12,8 @@ feasibility: feasible-with-gates
 feasibility_gate: M1
 primary_node: Mac Studio
 public_entry_node: ECS4
-backup_node: ECS5
+backup_node: to-be-determined-before-M5
+deferred_node: ECS5
 private_network: Tailscale
 ---
 
@@ -32,7 +33,7 @@ M1 是硬门槛。只有在 Mac Studio 上完成 Linux 运行时、GitLab 镜像
 | 协作评审 | GitLab 项目权限、Issue 和 Merge Request | 测试账号权限记录、评审记录 |
 | CI/CD | GitLab Runner 执行 ARM64 优先的示例流水线 | 成功/失败/重跑日志、制品 |
 | 外部访问 | ECS4 公网反向代理，经 Tailscale 转发到 Mac Studio | 域名、证书、SSH/HTTPS Git 记录 |
-| 可恢复运行 | GitLab 备份复制到 ECS5，执行恢复和重启演练 | 备份文件、校验、恢复结果 |
+| 可恢复运行 | GitLab 备份复制到 M5 前确定的独立备份目标，执行恢复和重启演练 | 备份文件、校验、恢复结果 |
 
 ## 03. 部署拓扑
 
@@ -47,8 +48,6 @@ Mac Studio
   |-- GitLab Web / Git HTTPS / Git SSH
   |-- GitLab Runner
   |-- GitLab 持久化数据
-  |
-  +--> ECS5 备份接收目录
 ```
 
 ## 04. 节点职责
@@ -73,23 +72,22 @@ Mac Studio 已确认具备 24 核 CPU、64GB 内存和约 736GB 可用磁盘，�
 
 ECS4 的管理员 SSH 和 Git SSH 必须分离：优先保留 22 端口用于管理，Git 使用独立端口并在域名或 Git 配置中声明；若使用同一端口，必须使用已经验证的 SSH 转发方案，不得靠未验证的端口复用假设交付。
 
-### ECS5：备份节点
+### 备份目标：M5 前确定
 
-- 首期只部署备份接收目录、专用账号和权限，不部署 GitLab、Runner 或公网代理。
-- 通过 Tailscale 或受限 SSH 接收 Mac Studio 生成的备份。
-- 保存备份校验结果和保留版本。
-- 后续才评估是否改作第二个 Runner 或备用入口。
+- ECS5 暂不引入，不作为首期备份节点。
+- 在 M5 开始前确定一个独立于 Mac Studio 的备份目标。
+- 备份目标必须支持专用账号、最小权限、校验、保留和恢复测试。
 
-这种职责划分同时满足“ECS5 首期不参与服务部署”和“备份必须离开主节点保存”两个冻结约束。
+备份目标确定后，必须补充地址、访问链路、容量和恢复记录，才能满足“备份必须离开主节点保存”的冻结约束。
 
 ## 05. 网络与访问实现
 
 ### 私网连接
 
-1. Mac Studio、ECS4 和 ECS5 加入同一个 Tailscale 网络。
+1. Mac Studio 和 ECS4 加入同一个 Tailscale 网络。
 2. 使用稳定的 Tailscale 地址或 MagicDNS 名称作为上游地址。
 3. ECS4 只将必要请求转发到 Mac Studio，不使用家庭路由器端口映射。
-4. ECS5 的备份链路不经过公网入口代理。
+4. 备份链路不经过公网入口代理。
 5. Tailscale ACL 只允许节点之间访问所需端口。
 
 ### Web 与 Git
@@ -127,7 +125,7 @@ ECS4 的管理员 SSH 和 Git SSH 必须分离：优先保留 22 端口用于管
 ### 备份与恢复
 
 - 每日执行 GitLab 备份，保留多个历史版本。
-- 通过受限链路复制到 ECS5 的独立目录。
+- 通过受限链路复制到 M5 前确定的独立备份目标。
 - 每份备份记录时间、版本、大小和校验结果。
 - 定期恢复测试项目，确认备份能被读取和实际使用。
 - 单独保存入口配置和恢复步骤，避免只备份 GitLab 数据而无法重建访问入口。

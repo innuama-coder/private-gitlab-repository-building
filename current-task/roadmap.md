@@ -27,15 +27,15 @@ milestone_contract: six-elements
 
 ### 01. 目标
 
-证明 Mac Studio 能以 Linux 容器运行 GitLab 所需环境，并让 ECS4、Mac Studio、ECS5 形成可管理的 Tailscale 私网基础。M1 的结果必须回答“这套主机和运行时能不能承载后续方案”。
+证明 Mac Studio 能以 Linux 容器运行 GitLab 所需环境，并让 ECS4、Mac Studio 形成可管理的 Tailscale 私网基础。M1 的结果必须回答“这套主机和运行时能不能承载后续方案”。
 
 ### 02. 工作方法
 
-1. 确认三节点身份、地址、角色和公网入口条件。
+1. 确认 Mac Studio、ECS4 的角色、地址和公网入口条件。
 2. 在 Mac Studio 安装或确认 Docker Desktop、Colima 或等效 Linux 容器运行时。
 3. 拉取目标 GitLab CE 镜像，验证原生 ARM64；若不可用，再验证 `linux/amd64` 兼容运行。
 4. 用测试数据启动一次 GitLab 容器，检查端口、健康端点、持久化目录和重启恢复。
-5. 配置三节点 Tailscale 连接、ECS4 防火墙和 Mac Studio 不睡眠策略。
+5. 配置 Mac Studio 与 ECS4 的 Tailscale 连接、ECS4 防火墙和 Mac Studio 不睡眠策略。
 
 ### 03. 边界
 
@@ -52,7 +52,7 @@ milestone_contract: six-elements
 
 ### 05. 交付物
 
-- 三节点角色、地址和端口清单。
+- Mac Studio、ECS4 的角色、地址和端口清单。
 - Mac Studio 容器运行时版本和配置。
 - GitLab 镜像架构验证记录。
 - 测试容器配置、持久化目录和健康检查记录。
@@ -62,7 +62,6 @@ milestone_contract: six-elements
 ### 06. 验收标准与方法
 
 - 从 ECS4 通过 Tailscale SSH 访问 Mac Studio。
-- 从 Mac Studio 通过 Tailscale 访问 ECS5。
 - GitLab 测试容器可启动，健康检查返回预期结果。
 - 重启或重建测试容器后，测试数据仍可读取。
 - 明确记录实际使用的 CPU 架构和运行模式。
@@ -214,12 +213,12 @@ milestone_contract: six-elements
 
 ### 01. 目标
 
-交付一套真正可恢复的 GitLab 数据保护能力：备份能离开 Mac Studio 到达 ECS5，并能恢复出可使用的项目。
+交付一套真正可恢复的 GitLab 数据保护能力：备份能离开 Mac Studio 到达 M5 前确定的独立备份目标，并能恢复出可使用的项目。
 
 ### 02. 工作方法
 
 1. 在 Mac Studio 配置每日 GitLab 备份。
-2. 在 ECS5 只部署备份接收目录、专用账号和最小权限。
+2. 在 M5 开始前确定备份目标，并部署备份接收目录、专用账号和最小权限。
 3. 通过 Tailscale 或受限 SSH 复制备份并记录校验结果。
 4. 设置保留版本、磁盘空间检查和失败告警记录。
 5. 将 GitLab 配置、ECS4 代理配置和恢复步骤单独归档。
@@ -227,9 +226,9 @@ milestone_contract: six-elements
 
 ### 03. 边界
 
-- 包含：GitLab 备份、ECS5 接收、校验、保留、测试恢复和恢复说明。
-- 不包含：ECS5 上的 GitLab、Runner、公网代理、高可用和对象存储。
-- ECS5 只承担备份基础设施，不改变“首期不参与服务部署”的冻结约束。
+- 包含：GitLab 备份、独立目标接收、校验、保留、测试恢复和恢复说明。
+- 不包含：ECS5 上的任何服务、高可用和对象存储。
+- ECS5 暂不引入；新的备份目标必须先完成环境确认。
 
 ### 04. 约束
 
@@ -241,7 +240,7 @@ milestone_contract: six-elements
 ### 05. 交付物
 
 - Mac Studio 定时备份配置。
-- ECS5 备份接收目录、账号和权限配置。
+- 独立备份目标的接收目录、账号和权限配置。
 - 备份文件、校验记录和保留策略。
 - 测试恢复结果。
 - GitLab、ECS4 和恢复流程说明。
@@ -249,7 +248,7 @@ milestone_contract: six-elements
 ### 06. 验收标准与方法
 
 - 手动执行一次备份并确认成功。
-- 在 ECS5 找到备份，核对时间、大小和校验结果。
+- 在独立备份目标找到备份，核对时间、大小和校验结果。
 - 删除测试位置副本后从备份恢复项目。
 - 读取恢复后的项目并完成一次 Git 操作。
 - 确认备份链路不依赖公网入口代理的数据目录。
@@ -288,7 +287,7 @@ milestone_contract: six-elements
 - 可通过正式域名访问的 GitLab 服务。
 - GitLab Runner 和示例 CI/CD 流水线。
 - ECS4 公网入口配置。
-- ECS5 备份与恢复记录。
+- 独立备份目标的备份与恢复记录。
 - 配置、版本、维护、故障处理和恢复说明。
 - 完整验收证据索引。
 
