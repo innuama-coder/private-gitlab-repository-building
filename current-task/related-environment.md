@@ -44,7 +44,7 @@ Mac Studio 和 ECS4 通过 Tailscale 组成私网。公网用户只访问 ECS4�
 - CPU：24 核。
 - 内存：64GB。
 - 内置磁盘：约 926GiB，检查时可用约 736GB。
-- 外置磁盘：`LaCie`，4TB HFS+，检查时可用约 2.0TB；作为备份候选目标。
+- 外置磁盘：`LaCie`，4TB HFS+，检查时可用约 2.0TB；作为本地第二份备份。
 - Tailscale 地址：`100.65.102.93`。
 - Tailscale 名称：`roymac-studio`。
 - Docker Desktop：4.44.2，Linux ARM64，GitLab CE 与 ARM64 Runner 正常运行。
@@ -103,10 +103,10 @@ Mac Studio 和 ECS4 通过 Tailscale 组成私网。公网用户只访问 ECS4�
 ## 04. 备份环境状态
 
 - 首期不引入 ECS5 或其他额外执行节点。
-- 已确认 `LaCie` 外置磁盘可用，挂载点为 `/Volumes/LaCie`，可用空间约 2.0TB。
-- GitLab 备份已能复制到 `/Volumes/LaCie/gitlab-backups`，并完成 SHA-256 校验与项目 bundle 恢复验证。
-- LaCie 与 Mac Studio 共用主机，属于独立物理介质，但不是独立主机故障域；正式容灾目标若要求主机级隔离，仍需在 M5 补充云对象存储或其他远端目标。
-- 在正式目标满足冻结约束前，备份能力只能标记为“已验证候选”，不能宣称完整容灾交付。
+- `roymacbook-pro` 已确定为正式远端备份目标，Tailscale 地址为 `100.126.98.93`，接收目录为 `/Users/royzuo/gitlab-backups`。
+- Mac Studio 使用专用 Ed25519 备份密钥，通过 Tailscale SSH 和受限密钥选项复制备份；MacBook 目录权限为仅用户可读写。
+- LaCie 同时保留本地第二份备份，挂载点为 `/Volumes/LaCie`，可用空间约 2.0TB。
+- 远端备份已完成 SHA-256 对比，并在 MacBook 上从备份恢复项目 bundle、执行 `git fsck` 和读取提交记录。
 
 ## 05. 非执行环境
 
@@ -135,7 +135,7 @@ Mac Studio 和 ECS4 通过 Tailscale 组成私网。公网用户只访问 ECS4�
 | M2 | Mac Studio | GitLab 核心服务可用 |
 | M3 | ECS4、Mac Studio | 公网 Web、HTTPS Git、SSH Git 可用 |
 | M4 | Mac Studio | GitLab Runner 和 CI/CD 可用 |
-| M5 | Mac Studio、LaCie 外置磁盘；远端目标待补充 | 备份、复制、校验和恢复可用 |
+| M5 | Mac Studio、roymacbook-pro；LaCie 为本地副本 | 备份、复制、校验和恢复可用 |
 | M6 | 当前全部执行目标及最终确认的备份目标 | 全链路验收和正式交付 |
 
 ## 07. 环境使用规则
@@ -143,5 +143,5 @@ Mac Studio 和 ECS4 通过 Tailscale 组成私网。公网用户只访问 ECS4�
 - 先验证环境，再在对应环境部署职责范围内的服务。
 - 任何节点改变角色，都必须先更新总体方案和路线图，并重新检查冻结六要素。
 - 只有 Mac Studio 和 ECS4 被列为当前执行目标；其他机器不作为隐含依赖。
-- LaCie 是当前已验证候选，不把 ECS5 作为备份目标；正式远端目标仍需单独确认。
+- `roymacbook-pro` 是正式远端备份目标，LaCie 是本地第二副本；ECS5 不作为备份目标。
 - 环境地址、端口、版本和运行模式以实际验收记录为准，不以历史探测结果代替验收证据。
