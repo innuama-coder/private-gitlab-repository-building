@@ -105,7 +105,7 @@ Mac Studio 和 ECS4 通过 Tailscale 组成私网。公网用户只访问 ECS4�
 - 首期不引入 ECS5 或其他额外执行节点。
 - `roymacbook-pro` 已确定为正式远端备份目标，Tailscale 地址为 `100.126.98.93`，接收目录为 `/Users/royzuo/gitlab-backups`。
 - Mac Studio 使用专用 Ed25519 备份密钥，通过 Tailscale SSH 和受限密钥选项复制备份；MacBook 目录权限为仅用户可读写。
-- LaCie 同时保留本地第二份备份，挂载点为 `/Volumes/LaCie`，可用空间约 2.0TB。
+- LaCie 可作为人工复制作业的本地第二副本，挂载点为 `/Volumes/LaCie`，可用空间约 2.0TB；正式定时链路不依赖它。
 - 远端备份已完成 SHA-256 对比，并在 MacBook 上从备份恢复项目 bundle、执行 `git fsck` 和读取提交记录。
 
 ## 05. 非执行环境

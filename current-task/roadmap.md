@@ -221,7 +221,7 @@ milestone_contract: six-elements
 
 ### 01. 目标
 
-交付一套真正可恢复的 GitLab 数据保护能力：将备份复制到 roymacbook-pro，并完成校验、读取和项目恢复；LaCie 保留第二副本。
+交付一套真正可恢复的 GitLab 数据保护能力：将备份复制到 roymacbook-pro，并完成校验、读取和项目恢复；LaCie 作为可选的人工第二副本。
 
 ### 02. 工作方法
 
