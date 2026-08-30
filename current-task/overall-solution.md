@@ -3,7 +3,7 @@ id: overall-solution
 title: 总体方案
 document_kind: machine-readable-solution-brief
 language: zh-CN
-version: 3.3
+version: 3.4
 status: feasibility-reviewed
 source_of_truth: six-elements.md
 environment_reference: related-environment.md
@@ -107,6 +107,7 @@ ECS4 的管理员 SSH 和 Git SSH 必须分离：优先保留 22 端口用于管
 - HTTPS Git 使用 GitLab 标准 HTTPS 入口。
 - SSH Git 使用独立端口，例如 `git clone ssh://git@domain:2222/group/project.git`；最终端口以 M3 的实际验证结果为准。
 - 用户端不需要安装 Tailscale；Tailscale 只运行在 ECS4 与 Mac Studio 之间。
+- 正式域名、Let's Encrypt HTTPS、HTTPS Git 和 Git SSH 已通过公网验收；Git SSH 使用 ECS4 `2222/tcp`。
 
 ### 安全边界
 

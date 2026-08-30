@@ -170,6 +170,17 @@ milestone_contract: six-elements
 
 通过门槛：正式域名的 Web、HTTPS Git 和 SSH Git 均通过，ECS4 与家庭上行带宽满足首期规模，大流量 Git 转发成功且入口链路无端口冲突，才能进入 M4。
 
+### M3 验收记录（2026-08-30）
+
+- DNS：`git.whale-smart.com` 已解析到 `39.105.43.18`。
+- HTTPS：Let's Encrypt 证书有效，Certbot 续期模拟通过。
+- Web：公网 HTTPS 登录页返回 `200`，HTTP 自动跳转 HTTPS。
+- HTTPS Git：临时私有项目完成 push、clone、pull。
+- SSH Git：经公网 `2222/tcp` 完成 clone、push、pull。
+- 大流量 Git：临时项目传输 8 MiB 文件并完成两种协议的读取验证。
+- Tailscale：ECS4 到 Mac Studio 验证为直连，未走 DERP。
+- 结果：M3 验收通过。
+
 ## M4. CI/CD 闭环可用
 
 ### 01. 目标

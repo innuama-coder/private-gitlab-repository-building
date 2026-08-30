@@ -3,7 +3,7 @@ id: related-environment
 title: 相关环境
 document_kind: machine-readable-environment-brief
 language: zh-CN
-version: 1.2
+version: 1.3
 status: agreed
 source_of_truth: six-elements.md
 frozen_dependency: true
@@ -80,8 +80,9 @@ Mac Studio 和 ECS4 通过 Tailscale 组成私网。公网用户只访问 ECS4�
 - Tailscale 地址：`100.100.85.86`，节点名 `ecs4-gitlab-gateway`。
 - Nginx `1.28.3` 已部署；HTTP 反代与 Git SSH TCP 转发配置已加载。
 - ECS4 到 Mac Studio 的 Tailscale 上游当前为直连，未走 DERP。
-- 公网状态：`80/tcp` 已可达；`443/tcp` 尚未监听；`2222/tcp` 已在 Nginx 监听但被云安全组过滤。
-- `git.whale-smart.com` 当前尚无 DNS A 记录，目标记录为 `39.105.43.18`。
+- 公网状态：`80/tcp`、`443/tcp`、`2222/tcp` 均已可达。
+- `git.whale-smart.com` A 记录已指向 `39.105.43.18`。
+- Let's Encrypt 证书已签发，当前有效期至 `2026-11-28`，Certbot 自动续期和续期模拟均通过。
 
 ### 首期部署内容
 
@@ -98,7 +99,7 @@ Mac Studio 和 ECS4 通过 Tailscale 组成私网。公网用户只访问 ECS4�
 - 管理 SSH 与 Git SSH 必须使用不冲突的端口规则。
 - 公网只开放验收所需端口。
 - Tailscale 到 Mac Studio 当前可直连；公网访问仍必须经过 ECS4。
-- 云安全组还需放行 `443/tcp` 和 `2222/tcp`；`80/tcp` 已放行，`22/tcp` 保持管理用途。
+- 云安全组已放行 `80/tcp`、`443/tcp` 和 `2222/tcp`；`22/tcp` 保持管理用途。
 
 ## 04. 备份环境状态
 
