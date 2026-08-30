@@ -3,16 +3,17 @@ id: gitlab-home-deployment-six-elements
 title: 家庭 GitLab 部署任务六要素
 document_kind: machine-readable-task-brief
 language: zh-CN
-version: 1.0
+version: 1.1
 status: frozen
 frozen_at: 2026-08-30
-freeze_note: "六要素经确认后冻结，后续变更需要显式解冻。"
+freeze_note: "访问路径和验收要求补充后重新冻结，后续变更需要显式解冻。"
 human_review_sample: ../artifacts/gitlab-home-deployment-human-review-sample.zip
 architecture:
   primary_node: Mac Studio
   public_entry: ECS4
   private_network: Tailscale
   reverse_proxy: Caddy-or-Nginx
+  external_traffic_path: all-through-ECS4
   secondary_node: ECS5
   secondary_node_role: reserved-for-backup-or-secondary-runner
 ---
@@ -23,7 +24,7 @@ architecture:
 
 ### 目标陈述
 
-在家里的 Mac Studio 上建立一套可长期使用的 GitLab，提供代码托管、协作评审和基础 CI/CD 能力；通过 ECS4 提供公网入口，通过 Tailscale 连接家庭网络，Mac Studio 不直接暴露在公网。
+在家里的 Mac Studio 上建立一套可长期使用的 GitLab，提供代码托管、协作评审和基础 CI/CD 能力；所有外部 Web、HTTPS Git 和 SSH Git 流量统一经过 ECS4 公网入口，再通过 Tailscale 连接到 Mac Studio，Mac Studio 不直接暴露在公网。
 
 ### 能力范围
 
@@ -38,14 +39,14 @@ architecture:
 1. 在 Mac Studio 上准备 Linux 容器运行环境。
 2. 在 Mac Studio 上部署 GitLab 和 Runner。
 3. 在 Mac Studio 与 ECS4 之间建立 Tailscale 私网连接。
-4. 在 ECS4 上配置 Caddy 或 Nginx，将域名请求转发到 Mac Studio。
+4. 在 ECS4 上配置 Caddy 或 Nginx，将所有外部 Web、HTTPS Git 和 SSH Git 请求转发到 Mac Studio。
 5. 配置 HTTPS、Git over HTTPS，以及标准 SSH 克隆和推送。
 6. 创建示例仓库，验证测试、构建、制品保存、备份和恢复。
 
 ### 工作原则
 
 - 每一步都留下可复查的配置和结果。
-- 先打通访问，再部署服务，最后验证流水线。
+- 先验证运行基础和私网，再部署核心服务，最后开放公网并验证流水线。
 - 首期优先使用简单、低运维的单节点方案。
 
 ## 03. 边界
@@ -55,6 +56,7 @@ architecture:
 - 单节点 GitLab。
 - 一个主要 GitLab Runner。
 - ECS4 公网入口。
+- 所有外部 Web、HTTPS Git 和 SSH Git 流量经 ECS4 转发。
 - HTTPS、SSH 和 HTTPS Git 访问。
 - 基础备份与恢复验证。
 - 个人或小团队使用所需的仓库、权限、Issue 和 Merge Request。
@@ -71,7 +73,8 @@ architecture:
 
 - Mac Studio 必须保持接电、联网，并关闭系统自动睡眠。
 - 网络中断后，相关容器和服务应能自动恢复。
-- 外部访问依赖 ECS4 公网 IP、域名解析和 Tailscale；ECS4 停机会导致公网入口不可用。
+- 所有外部访问依赖 ECS4 公网 IP、域名解析和 Tailscale；ECS4 停机会导致公网入口和 Git 数据访问不可用。
+- ECS4 只做流量转发，不保存或缓存 GitLab 仓库、制品和备份数据；大流量 Git 操作必须验证流式转发能力。
 - Mac Studio 使用 Apple Silicon；CI 镜像优先使用 ARM64，使用 amd64 时必须显式验证兼容性。
 - GitLab 仓库数据保存在 Mac Studio；备份必须复制到另一处，不能只保存在同一块硬盘。
 - ECS5 首期不参与部署，保留作备份机或第二个 Runner 的候选节点。
@@ -132,3 +135,4 @@ architecture:
 - 保留 SSH 与 HTTPS Git 操作记录。
 - 保留流水线编号、日志和制品记录。
 - 保留备份文件位置与恢复结果。
+- 保留 ECS4 转发链路和大流量 Git 操作记录。

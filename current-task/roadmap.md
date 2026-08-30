@@ -3,7 +3,7 @@ id: roadmap
 title: 路线图
 document_kind: machine-readable-roadmap
 language: zh-CN
-version: 3.0
+version: 3.1
 status: feasibility-reviewed
 source_of_truth: six-elements.md
 environment_reference: related-environment.md
@@ -22,6 +22,7 @@ milestone_contract: six-elements
 - 任何验收不通过时，停在当前里程碑修复，不跨步堆积问题。
 - 每个里程碑都完整使用六要素：目标、工作方法、边界、约束、交付物、验收标准与方法。
 - 六要素已经冻结；若实施中需要改变目标、边界或验收，必须先显式解冻。
+- 外部 Web、HTTPS Git 和 SSH Git 流量统一经过 ECS4；Tailscale 只承担 ECS4 与 Mac Studio 之间的私网链路。
 
 ## M1. 节点与运行基础可行
 
@@ -119,20 +120,21 @@ milestone_contract: six-elements
 
 ### 01. 目标
 
-让外部用户通过正式域名访问 GitLab Web，并用 HTTPS 和标准 SSH 完成 Git 操作；Mac Studio 仍不直接暴露公网。
+让外部用户通过正式域名访问 GitLab Web，并让 Web、HTTPS Git 和 SSH Git 全部经 ECS4 完成访问；Mac Studio 仍不直接暴露公网。
 
 ### 02. 工作方法
 
 1. 确认域名 A 记录指向 ECS4 公网 IP。
 2. 在 ECS4 部署 Caddy 或 Nginx，配置 HTTPS 证书自动续期。
-3. 通过 Tailscale 将 Web 和 Git HTTPS 转发到 Mac Studio。
+3. 通过 Tailscale 将所有 Web、Git HTTPS 和 Git SSH 流量转发到 Mac Studio。
 4. 为 Git SSH 选择独立端口，或配置已验证的 SSH 转发规则。
 5. 将 GitLab 外部 URL 切换到正式域名。
-6. 从不在家庭网络中的客户端完成 Web 和 Git 操作。
+6. 配置流式转发，确保大流量 Git 请求和响应不落盘、不缓存。
+7. 从不在家庭网络中的客户端完成 Web 和 Git 操作。
 
 ### 03. 边界
 
-- 包含：正式域名、HTTPS、Web、HTTPS Git、SSH Git 和 ECS4 反向代理。
+- 包含：正式域名、HTTPS、Web、HTTPS Git、SSH Git、ECS4 反向代理和流式转发。
 - 不包含：CI/CD 流水线、备份恢复和入口高可用。
 - 不把 ECS4 的管理员 SSH 与 Git SSH 端口冲突留到后续处理。
 
@@ -142,6 +144,9 @@ milestone_contract: six-elements
 - Mac Studio 不做家庭路由器端口映射。
 - Git SSH 的实际端口必须写入访问说明并真实验证。
 - 证书申请和续期不能依赖人工临时操作。
+- 用户端不要求安装 Tailscale；ECS4 到 Mac Studio 的 Tailscale 链路必须稳定。
+- ECS4 不得缓存或落盘 Git 请求体、响应体和仓库数据。
+- 必须记录 ECS4 公网带宽和家庭上行带宽的实测结果，确认它们满足首期使用规模。
 
 ### 05. 交付物
 
@@ -149,6 +154,7 @@ milestone_contract: six-elements
 - ECS4 反向代理、HTTPS 和证书续期配置。
 - Web、HTTPS Git、SSH Git 访问说明。
 - 管理 SSH 与 Git SSH 的端口分工记录。
+- ECS4 公网带宽、家庭上行带宽和大流量转发测试记录。
 - 外部访问测试记录。
 
 ### 06. 验收标准与方法
@@ -157,6 +163,8 @@ milestone_contract: six-elements
 - 证书有效，页面可以登录管理员账号。
 - 通过公网 HTTPS 完成 `clone`、`push`、`pull`。
 - 通过公网 SSH 完成 `clone`、`push`、`pull`。
+- 使用包含较大文件的测试仓库完成一次 HTTPS 和 SSH 的 `clone`、`push`、`pull`，确认流量经 ECS4 转发且操作不因超时或缓存失败。
+- 记录转发过程的吞吐、错误率、超时和 ECS4 资源使用情况。
 - 验证 Mac Studio 没有直接公网 GitLab 端口。
 - 临时断开 Tailscale，确认公网入口明确失败；恢复后重新可用。
 
@@ -213,12 +221,12 @@ milestone_contract: six-elements
 
 ### 01. 目标
 
-交付一套真正可恢复的 GitLab 数据保护能力：备份能离开 Mac Studio 到达 M5 前确定的独立备份目标，并能恢复出可使用的项目。
+交付一套真正可恢复的 GitLab 数据保护能力：在 M5 内确定独立备份目标，备份离开 Mac Studio 保存，并能恢复出可使用的项目。
 
 ### 02. 工作方法
 
 1. 在 Mac Studio 配置每日 GitLab 备份。
-2. 在 M5 开始前确定备份目标，并部署备份接收目录、专用账号和最小权限。
+2. 确定独立备份目标，并部署备份接收目录、专用账号和最小权限。
 3. 通过 Tailscale 或受限 SSH 复制备份并记录校验结果。
 4. 设置保留版本、磁盘空间检查和失败告警记录。
 5. 将 GitLab 配置、ECS4 代理配置和恢复步骤单独归档。
@@ -236,6 +244,7 @@ milestone_contract: six-elements
 - 备份目录使用专用账号和最小权限。
 - 备份不能只验证文件存在，必须验证读取和恢复。
 - 备份失败、磁盘不足和链路中断必须留下可诊断记录。
+- 备份目标必须在 M5 内完成选择和可达性验证，不能使用 ECS5。
 
 ### 05. 交付物
 
@@ -297,6 +306,7 @@ milestone_contract: six-elements
 - 私有项目的 SSH 和 HTTPS `clone`、`push`、`pull` 均通过。
 - 测试账号权限符合项目授权范围。
 - CI/CD 成功、失败、修复重跑、日志和制品均有记录。
+- Web、HTTPS Git 和 SSH Git 均证明通过 ECS4 转发；大流量 Git 操作有成功记录。
 - 备份、恢复、重启和 Tailscale 断连恢复均有记录。
 - Mac Studio 没有直接公网 GitLab 入口。
 - 冻结六要素的全部验收项都有通过证据。

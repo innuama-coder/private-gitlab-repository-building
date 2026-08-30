@@ -3,7 +3,7 @@ id: overall-solution
 title: 总体方案
 document_kind: machine-readable-solution-brief
 language: zh-CN
-version: 3.0
+version: 3.1
 status: feasibility-reviewed
 source_of_truth: six-elements.md
 environment_reference: related-environment.md
@@ -12,7 +12,7 @@ feasibility: feasible-with-gates
 feasibility_gate: M1
 primary_node: Mac Studio
 public_entry_node: ECS4
-backup_node: to-be-determined-before-M5
+backup_node: to-be-determined-in-M5
 deferred_node: ECS5
 private_network: Tailscale
 ---
@@ -21,9 +21,11 @@ private_network: Tailscale
 
 ## 01. 可行性结论
 
-方案对个人或小团队使用可行，但不是无条件可行。Mac Studio 的 CPU、内存和磁盘明显足够；真正的前置风险有三项：macOS 不是 GitLab 的运行系统，需要 Linux 容器运行时；Mac Studio 使用 Apple Silicon，GitLab 核心镜像的实际架构必须验证；ECS4 的管理 SSH 与 Git SSH 必须采用不冲突的入口规则。
+方案对个人或小团队使用可行，但不是无条件可行。Mac Studio 的 CPU、内存和磁盘明显足够；真正的前置风险有四项：macOS 不是 GitLab 的运行系统，需要 Linux 容器运行时；Mac Studio 使用 Apple Silicon，GitLab 核心镜像的实际架构必须验证；ECS4 的管理 SSH 与 Git SSH 必须采用不冲突的入口规则；ECS4 公网带宽和家庭上行带宽必须能承载 Web、Git 和制品传输。
 
 M1 是硬门槛。只有在 Mac Studio 上完成 Linux 运行时、GitLab 镜像、持久化目录、重启恢复和健康检查验证后，才允许进入正式部署。若原生 ARM64 镜像不可用，可以在小规模试用条件下验证 `linux/amd64` 兼容运行；验证不通过时，不能把方案标记为可交付。
+
+M3 也是公网访问门槛。只有在 ECS4 的带宽、端口、HTTPS、Web、HTTPS Git、SSH Git 和大流量 Git 转发均通过实测后，才允许把公网入口标记为可交付。
 
 ## 02. 目标到实现的对应关系
 
@@ -32,8 +34,8 @@ M1 是硬门槛。只有在 Mac Studio 上完成 Linux 运行时、GitLab 镜像
 | 代码托管 | Mac Studio 运行单节点 GitLab，数据保存到独立持久化目录 | 私有项目、仓库和重启后数据 |
 | 协作评审 | GitLab 项目权限、Issue 和 Merge Request | 测试账号权限记录、评审记录 |
 | CI/CD | GitLab Runner 执行 ARM64 优先的示例流水线 | 成功/失败/重跑日志、制品 |
-| 外部访问 | ECS4 公网反向代理，经 Tailscale 转发到 Mac Studio | 域名、证书、SSH/HTTPS Git 记录 |
-| 可恢复运行 | GitLab 备份复制到 M5 前确定的独立备份目标，执行恢复和重启演练 | 备份文件、校验、恢复结果 |
+| 外部访问 | 所有外部 Web、HTTPS Git 和 SSH Git 流量经 ECS4 公网反向代理，再经 Tailscale 转发到 Mac Studio | 域名、证书、SSH/HTTPS Git 记录和转发验证 |
+| 可恢复运行 | GitLab 备份复制到 M5 内确定的独立备份目标，执行恢复和重启演练 | 备份文件、校验、恢复结果 |
 
 ## 03. 部署拓扑
 
@@ -66,16 +68,17 @@ Mac Studio 已确认具备 24 核 CPU、64GB 内存和约 736GB 可用磁盘，�
 
 - 保留固定公网 IP，开放 80、443，以及 Git SSH 所需入口。
 - 运行 Caddy 或 Nginx，负责域名、HTTPS 证书和反向代理。
-- 通过 Tailscale 将 Web 和 Git HTTPS 请求转发到 Mac Studio。
-- 将 Git SSH 转发到 GitLab SSH 服务。
+- 通过 Tailscale 将所有外部 Web 和 Git HTTPS 请求转发到 Mac Studio。
+- 将所有外部 Git SSH 请求转发到 GitLab SSH 服务。
+- 对 Git 大流量使用流式转发，不启用会把请求体或响应体落盘的缓存。
 - 不保存 GitLab 仓库和核心业务数据。
 
 ECS4 的管理员 SSH 和 Git SSH 必须分离：优先保留 22 端口用于管理，Git 使用独立端口并在域名或 Git 配置中声明；若使用同一端口，必须使用已经验证的 SSH 转发方案，不得靠未验证的端口复用假设交付。
 
-### 备份目标：M5 前确定
+### 备份目标：M5 内确定
 
 - ECS5 暂不引入，不作为首期备份节点。
-- 在 M5 开始前确定一个独立于 Mac Studio 的备份目标。
+- 在 M5 内确定一个独立于 Mac Studio 的备份目标。
 - 备份目标必须支持专用账号、最小权限、校验、保留和恢复测试。
 
 备份目标确定后，必须补充地址、访问链路、容量和恢复记录，才能满足“备份必须离开主节点保存”的冻结约束。
@@ -86,7 +89,7 @@ ECS4 的管理员 SSH 和 Git SSH 必须分离：优先保留 22 端口用于管
 
 1. Mac Studio 和 ECS4 加入同一个 Tailscale 网络。
 2. 使用稳定的 Tailscale 地址或 MagicDNS 名称作为上游地址。
-3. ECS4 只将必要请求转发到 Mac Studio，不使用家庭路由器端口映射。
+3. ECS4 将所有外部 Web、HTTPS Git 和 Git SSH 请求转发到 Mac Studio，不使用家庭路由器端口映射。
 4. 备份链路不经过公网入口代理。
 5. Tailscale ACL 只允许节点之间访问所需端口。
 
@@ -97,6 +100,7 @@ ECS4 的管理员 SSH 和 Git SSH 必须分离：优先保留 22 端口用于管
 - GitLab 外部 URL 固定使用正式域名，不使用公网 IP 作为长期地址。
 - HTTPS Git 使用 GitLab 标准 HTTPS 入口。
 - SSH Git 使用独立端口，例如 `git clone ssh://git@domain:2222/group/project.git`；最终端口以 M3 的实际验证结果为准。
+- 用户端不需要安装 Tailscale；Tailscale 只运行在 ECS4 与 Mac Studio 之间。
 
 ### 安全边界
 
@@ -125,7 +129,7 @@ ECS4 的管理员 SSH 和 Git SSH 必须分离：优先保留 22 端口用于管
 ### 备份与恢复
 
 - 每日执行 GitLab 备份，保留多个历史版本。
-- 通过受限链路复制到 M5 前确定的独立备份目标。
+- 通过受限链路复制到 M5 内确定的独立备份目标。
 - 每份备份记录时间、版本、大小和校验结果。
 - 定期恢复测试项目，确认备份能被读取和实际使用。
 - 单独保存入口配置和恢复步骤，避免只备份 GitLab 数据而无法重建访问入口。
@@ -139,7 +143,7 @@ ECS4 的管理员 SSH 和 Git SSH 必须分离：优先保留 22 端口用于管
 3. M3 证明外部用户能通过正式域名访问 Web、HTTPS Git 和 SSH Git。
 4. M4 证明 Runner 能完成成功、失败、修复重跑、日志和制品保存。
 5. M5 证明备份能生成、复制、校验、读取和恢复。
-6. M6 按冻结六要素完成全链路复核并整理交付证据。
+6. M6 按冻结六要素完成全链路复核，并验证 ECS4 转发下的大流量 Git 操作和整理交付证据。
 
 任何一段没有证据，都只能算“已配置”，不能算“交付合格”。
 
