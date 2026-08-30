@@ -6,6 +6,7 @@ language: zh-CN
 version: 3.0
 status: feasibility-reviewed
 source_of_truth: six-elements.md
+environment_reference: related-environment.md
 frozen_dependency: true
 linear: true
 milestone_contract: six-elements
@@ -302,4 +303,3 @@ milestone_contract: six-elements
 - 冻结六要素的全部验收项都有通过证据。
 
 通过门槛：所有冻结验收项均通过且证据可复查，首期任务才算完成；否则保持未交付状态并回到对应里程碑。
-

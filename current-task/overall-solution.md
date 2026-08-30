@@ -6,6 +6,7 @@ language: zh-CN
 version: 3.0
 status: feasibility-reviewed
 source_of_truth: six-elements.md
+environment_reference: related-environment.md
 frozen_dependency: true
 feasibility: feasible-with-gates
 feasibility_gate: M1
@@ -149,4 +150,3 @@ ECS4 的管理员 SSH 和 Git SSH 必须分离：优先保留 22 端口用于管
 首期交付单节点、低运维、可访问、可构建、可备份的最小闭环。高可用集群、Kubernetes、对象存储、多地域容灾和复杂发布编排不在首期范围内。
 
 只有在资源持续接近上限、家庭网络明显影响工作、Runner 并发不足、公网入口需要切换，或恢复演练不达标时，才启动下一轮方案设计。
-
