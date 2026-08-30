@@ -190,6 +190,7 @@ milestone_contract: six-elements
 - Git SSH：Mac Studio `2222/tcp` 可从 ECS5 Tailscale 地址访问。
 - 身份：使用独立账号 `agent-ecs5` 和独立 Ed25519 密钥。
 - 实际操作：完成临时 Project 的 direct `clone` 和分支 `push`。
+- 网络修复：将 ECS5 的冲突 DNS 从 `100.100.2.136/100.100.2.138` 切换为 `223.5.5.5/223.6.6.6`，公网 DNS、HTTPS 和 GitLab 直连均恢复。
 - ECS4：公网域名和公网 SSH 入口未修改，仍保持原有职责。
 - Tailscale：ECS4 到 Mac Studio 验证为直连，未走 DERP。
 - 结果：M3 验收通过。

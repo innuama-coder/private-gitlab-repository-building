@@ -123,6 +123,7 @@ ECS5 Agent -> Tailscale 点对点 -> Mac Studio GitLab
 - Tailscale `ping` 已显示到 Mac Studio 的 direct 路径。
 - Mac Studio GitLab SSH `2222/tcp` 已从 ECS5 直连验证。
 - ECS5 使用独立 GitLab 账号 `agent-ecs5` 和独立 Ed25519 密钥。
+- Tailscale 安装后发现 ECS5 原有 `100.100.2.136/100.100.2.138` DNS 与 Tailscale 地址空间冲突；已通过 `/etc/netplan/99-ecs5-public-dns.yaml` 固定使用 `223.5.5.5/223.6.6.6`，公网 DNS 和 HTTPS 已恢复。
 
 ### 环境边界
 
