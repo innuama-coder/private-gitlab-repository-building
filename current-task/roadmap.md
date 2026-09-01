@@ -123,7 +123,7 @@ Runner Token 不进仓库；Job 必须由真实 Runner 执行，不能用手工�
 流水线自动创建并完成，`test` 和 `build` 均成功，Job 绑定 `mac-studio-arm64`，制品可读取。
 
 ### 验收结果
-通过。目标 GitLab 流水线 `#6` 由 Mac Studio Runner 执行，`test`、`build` 均为 `success`。
+通过。目标 GitLab 流水线 `#6` 由 Mac Studio Runner 执行，`test`、`build` 均为 `success`。随后在临时验收分支中制造可控错误，流水线 `#9` 按预期失败并留下诊断日志；移除错误后流水线 `#10` 成功，临时分支已删除。
 
 ## M5. 备份与恢复
 

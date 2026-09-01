@@ -71,7 +71,7 @@ Mac Studio Runner -> 正式域名 -> GitLab VM 9002
 - 设备：Mac Studio `Mac14,14`，Apple Silicon，24 核 CPU、64GB 内存。
 - Tailscale 地址：`100.65.102.93`，节点名 `roymac-studio`。
 - 当前职责：运行 GitLab Runner `mac-studio-arm64`，使用 Docker executor。
-- 2026-09-01 的真实流水线 `#6` 已由该 Runner 完成，`test`、`build` 均为 `success`。
+- 2026-09-01 的真实流水线 `#6` 已由该 Runner 完成，`test`、`build` 均为 `success`；临时失败恢复验收为 `#9` 失败、`#10` 修复后成功。
 - 迁移前 GitLab 数据和原实例保持原样，至少观察 7 天；未确认新实例稳定前不删除。
 - 旧实例只用于回退，不接收当前正式流量，不与新实例双写。
 
