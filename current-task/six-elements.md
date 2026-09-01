@@ -3,19 +3,24 @@ id: gitlab-home-deployment-six-elements
 title: 家庭 GitLab 部署任务六要素
 document_kind: machine-readable-task-brief
 language: zh-CN
-version: 1.2
+version: 1.4
 status: frozen
-frozen_at: 2026-08-30
-freeze_note: "补充 ECS5 仅供自身使用的 Tailscale 直连路径后重新冻结，后续变更需要显式解冻。"
+frozen_at: 2026-09-01
+freeze_note: "迁移完成后重新冻结：GitLab 主服务运行在家庭网络 Proxmox VM 9002，Mac Studio 承担 Runner；后续变更需要显式解冻。"
 human_review_sample: ../artifacts/gitlab-home-deployment-human-review-sample.zip
 architecture:
-  primary_node: Mac Studio
+  primary_node: Proxmox VM 9002
+  runner_node: Mac Studio
   public_entry: ECS4
   private_network: Tailscale
   reverse_proxy: Caddy-or-Nginx
-  external_traffic_path: public-through-ECS4; ecs5-direct-through-Tailscale
-  secondary_node: ECS5
-  secondary_node_role: access-only-direct-agent
+  external_traffic_path: public-through-ECS4-to-vm; ecs1-ecs6-direct-through-Tailscale-to-vm
+  direct_server_nodes: ECS1-ECS6
+  gitlab_tailscale_ip: 100.83.178.99
+  legacy_node: Mac Studio
+  legacy_node_role: rollback-only
+  backup_node: roymacbook-pro
+  acceptance_model: single-direct-route-standard
 ---
 
 # 家庭 GitLab 部署任务六要素
@@ -24,7 +29,7 @@ architecture:
 
 ### 目标陈述
 
-在家里的 Mac Studio 上建立一套可长期使用的 GitLab，提供代码托管、协作评审和基础 CI/CD 能力；公网用户的 Web、HTTPS Git 和 SSH Git 流量统一经过 ECS4 公网入口，再通过 Tailscale 连接到 Mac Studio，Mac Studio 不直接暴露在公网。已授权的 ECS5 只为自身 Git 操作增加 Tailscale 点对点直连，不改变公网访问路径。
+在家庭网络内建立一套可长期使用的 GitLab，提供代码托管、协作评审和基础 CI/CD 能力。GitLab 主服务运行在 Proxmox VM `9002`（`192.168.101.202`，Tailscale 地址 `100.83.178.99`），Mac Studio 承担主要 Runner。公网用户继续通过 ECS4 公网入口访问；ECS1 至 ECS6 遇到 `git.whale-smart.com` 时，直接解析到 VM 的 Tailscale 地址，不经过 ECS4。家庭网络不配置 GitLab 公网端口映射。
 
 ### 能力范围
 
@@ -36,13 +41,14 @@ architecture:
 
 ### 实施顺序
 
-1. 在 Mac Studio 上准备 Linux 容器运行环境。
-2. 在 Mac Studio 上部署 GitLab 和 Runner。
-3. 在 Mac Studio 与 ECS4 之间建立 Tailscale 私网连接。
-4. 在 ECS4 上配置 Caddy 或 Nginx，将所有外部 Web、HTTPS Git 和 SSH Git 请求转发到 Mac Studio。
-5. 在 ECS5 上配置 Tailscale 直连 Mac Studio，并让 ECS5 使用自己的 GitLab 账号和密钥访问 GitLab。
-6. 配置 HTTPS、Git over HTTPS，以及标准 SSH 克隆和推送。
-7. 创建示例仓库，验证测试、构建、制品保存、备份和恢复。
+1. 在 Proxmox VM `9002` 准备 Linux 容器运行环境和持久化数据盘。
+2. 在 VM 上部署 GitLab，并在 Mac Studio 保留主要 Runner。
+3. 在 GitLab VM、Mac Studio 与 ECS1 至 ECS6 之间建立 Tailscale 连接。
+4. 在 GitLab VM 提供 Tailscale 地址上的 HTTPS `443/tcp` 和 Git SSH `2222/tcp`。
+5. 在 ECS1 至 ECS6 配置 `git.whale-smart.com -> 100.83.178.99`，让服务器 Git 流量直接走 Tailscale。
+6. 保留 ECS4 公网入口，将外部 HTTPS 和 SSH Git 请求经 Tailscale 转发到 GitLab VM。
+7. 配置 HTTPS、Git over HTTPS，以及标准 SSH 克隆和推送。
+8. 创建示例仓库，验证测试、构建、制品保存、备份和恢复。
 
 ### 工作原则
 
@@ -54,11 +60,11 @@ architecture:
 
 ### 包含
 
-- 单节点 GitLab。
-- 一个主要 GitLab Runner。
+- 单节点 GitLab，运行在 Proxmox VM `9002`。
+- 一个主要 GitLab Runner，运行在 Mac Studio。
 - ECS4 公网入口。
-- 所有外部 Web、HTTPS Git 和 SSH Git 流量经 ECS4 转发。
-- ECS5 自身通过 Tailscale 直连 Mac Studio 的 Git SSH 访问。
+- ECS1 至 ECS6 通过 Tailscale 直连 GitLab VM 的 Web、HTTPS Git 和 Git SSH 访问。
+- 外部用户通过 ECS4 公网入口访问 GitLab，ECS4 只做转发。
 - HTTPS、SSH 和 HTTPS Git 访问。
 - 基础备份与恢复验证。
 - 个人或小团队使用所需的仓库、权限、Issue 和 Merge Request。
@@ -73,35 +79,43 @@ architecture:
 
 ## 04. 约束
 
-- Mac Studio 必须保持接电、联网，并关闭系统自动睡眠。
-- 网络中断后，相关容器和服务应能自动恢复。
-- 公网访问依赖 ECS4 公网 IP、域名解析和 Tailscale；ECS4 停机会导致公网入口不可用，但不阻断已授权 ECS5 的 Tailscale 直连。
+- GitLab VM 必须保持运行、接入家庭局域网，并由 Proxmox 配置开机启动；Mac Studio 需保持接电、联网并关闭自动睡眠以运行 Runner。
+- 网络中断或 VM 重启后，GitLab 容器应能自动恢复。
+- 公网访问依赖 ECS4 公网 IP、域名解析和 Tailscale；ECS4 停机会导致公网入口不可用，但不阻断 ECS1 至 ECS6 已配置的 Tailscale 直连。
 - ECS4 只做公网流量转发，不保存或缓存 GitLab 仓库、制品和备份数据；经 ECS4 的大流量 Git 操作必须验证流式转发能力。
-- Mac Studio 使用 Apple Silicon；CI 镜像优先使用 ARM64，使用 amd64 时必须显式验证兼容性。
-- GitLab 仓库数据保存在 Mac Studio；备份必须复制到另一处，不能只保存在同一块硬盘。
-- ECS5 只作为已授权的 GitLab 私网访问节点，不运行 GitLab 核心服务、不作为备份目标、不承担公网入口，也不改变 ECS4 的职责。
+- GitLab VM 使用 x86_64；Runner 运行在 Apple Silicon Mac Studio，CI 镜像架构必须按 Job 实际环境验证。
+- GitLab 仓库数据保存在 VM 的 `/srv/gitlab`；备份必须复制到另一处，不能只保存在同一故障域。
+- ECS1 至 ECS6 只作为 GitLab 私网访问节点，不运行 GitLab 核心服务、不作为备份目标；ECS4 额外承担公网入口职责。
 
 ### 已确认条件
 
-- Mac Studio：24 核 CPU。
-- Mac Studio：64GB 内存。
-- Mac Studio：约 736GB 可用磁盘。
-- Mac Studio：已能通过 Tailscale SSH 访问，Tailscale 地址为 `100.65.102.93`。
-- ECS5：Tailscale 地址为 `100.68.48.115`，已能 direct 连接 Mac Studio 的 `2222/tcp`。
+- Proxmox VM `9002`：`8 vCPU`、`16GB RAM`，数据盘约 `1TB`，挂载 `/srv/gitlab`。
+- GitLab VM：Tailscale 地址 `100.83.178.99`，GitLab CE `19.3.1`，容器状态 `healthy`。
+- Mac Studio：24 核 CPU、64GB 内存，运行主要 ARM64 Runner，Tailscale 地址 `100.65.102.93`。
+- ECS5：Tailscale 地址为 `100.68.48.115`，已能 direct 连接 GitLab VM 的 `2222/tcp`。
+- ECS1 至 ECS6：`git.whale-smart.com` 必须解析为 `100.83.178.99`，并通过各自的 `tailscale0` 访问 GitLab VM 的 `443/2222`。
 
 ## 05. 交付物
 
 - `artifacts/gitlab-home-deployment-human-review-sample.zip`
   - 解压后可直接打开 `index.html` 阅读。
   - 包含内网机械鲸鱼 Logo 与 `KUNORA.internal` 文字 Logo 资产。
-- Mac Studio 上运行的 GitLab 服务。
-- GitLab Runner 与示例流水线。
+- Proxmox VM `9002` 上运行的 GitLab 服务及 `/srv/gitlab` 持久化目录。
+- Mac Studio 上的 GitLab Runner 与示例流水线。
 - ECS4 上的公网反向代理配置。
+- GitLab VM Tailscale HTTPS `443/tcp` 与 Git SSH `2222/tcp` 配置。
+- ECS1 至 ECS6 的 GitLab 域名直连解析配置和逐台验收记录。
 - 域名、HTTPS 与访问策略。
 - Git SSH / HTTPS 访问说明。
 - 备份、恢复和日常维护说明。
 
 ## 06. 验收标准与方法
+
+### 本次网络改动的唯一验收标准
+
+ECS1 至 ECS6 访问 `git.whale-smart.com` 时，无论使用 HTTP、HTTPS 还是 Git SSH，都必须直接连接 GitLab VM，不经过 ECS4 公网 IP；各节点访问互联网的默认路由仍保持不变。
+
+验收方法：在 ECS1 至 ECS6 分别检查域名解析、`80/443/2222` 连接和实际路由。HTTP 应返回 GitLab 到 HTTPS 的 `301`，HTTPS 应返回 GitLab 响应，SSH `2222/tcp` 应返回 GitLab SSH banner；到 `100.83.178.99` 的路由必须使用 `tailscale0`，到互联网的默认路由必须使用各自 `eth0`。以上六台全部通过，才算本次网络改动合格。
 
 ### 访问与身份
 
@@ -114,7 +128,7 @@ architecture:
 
 - 创建私有项目。
 - 通过 SSH 完成 `clone`、`push`、`pull`。
-- ECS5 通过 Tailscale 直连完成 GitLab SSH `clone`、`push`、`pull`，且不经过 ECS4。
+- ECS1 至 ECS6 通过 Tailscale 直连完成 GitLab HTTPS/SSH `clone`、`push`、`pull`，且不经过 ECS4。
 - 通过 HTTPS 完成 `clone`、`push`、`pull`。
 - 测试账号只能访问被授权的项目。
 
@@ -130,7 +144,7 @@ architecture:
 
 - 手动执行一次备份。
 - 确认备份文件可读取，并能恢复到测试位置。
-- 重启 Mac Studio 和相关容器，服务能自动恢复。
+- 重启 GitLab 容器和 VM，服务能自动恢复；Mac Studio Runner 能重新连接。
 - 暂时断开 Tailscale，公网入口明确不可用；恢复连接后能自动恢复。
 
 ### 验收证据
@@ -139,4 +153,4 @@ architecture:
 - 保留 SSH 与 HTTPS Git 操作记录。
 - 保留流水线编号、日志和制品记录。
 - 保留备份文件位置与恢复结果。
-- 保留 ECS4 转发链路和大流量 Git 操作记录。
+- 保留 ECS4 转发链路、大流量 Git 操作记录，以及 ECS1 至 ECS6 的直接 Tailscale 路径记录。

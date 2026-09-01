@@ -1,0 +1,41 @@
+# BEGIN KUNORA TEAM MESH
+Host team-ecs1
+    HostName 39.107.81.166
+    User kunora
+Host team-ecs2
+    HostName 8.221.136.35
+    User kunora
+Host team-ecs3
+    HostName 8.221.138.205
+    User kunora
+Host team-ecs4
+    HostName 39.105.43.18
+    User kunora
+Host team-ecs5
+    HostName 47.93.189.15
+    User kunora
+Host team-ecs6
+    HostName 112.126.76.80
+    User kunora
+Host team-mac-studio
+    HostName 100.65.102.93
+    User kunora
+Host team-local-macbook
+    HostName 127.0.0.1
+    User kunora
+Host team-vircs-dev
+    HostName relay-us2.virvm.com
+    Port 29206
+    User kunora
+Host team-vircs-windows-runner
+    HostName relay-us2.virvm.com
+    Port 33919
+    User kunora
+Host team-*
+    IdentityFile ~/.ssh/id_ed25519_team_network
+    IdentitiesOnly yes
+    BatchMode yes
+    StrictHostKeyChecking accept-new
+    ServerAliveInterval 30
+    ServerAliveCountMax 3
+# END KUNORA TEAM MESH

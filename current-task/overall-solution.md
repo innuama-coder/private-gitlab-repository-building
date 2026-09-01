@@ -3,8 +3,8 @@ id: overall-solution
 title: 总体方案
 document_kind: machine-readable-solution-brief
 language: zh-CN
-version: 3.4
-status: feasibility-reviewed
+version: 3.5
+status: delivered
 source_of_truth: six-elements.md
 environment_reference: related-environment.md
 frozen_dependency: true
@@ -14,20 +14,23 @@ feasibility_gates:
   - M1
   - M3
   - M5
-primary_node: Mac Studio
+primary_node: Proxmox VM 9002
+runner_node: Mac Studio
 public_entry_node: ECS4
 backup_node: roymacbook-pro
 access_only_node: ECS5
 private_network: Tailscale
+gitlab_tailscale_ip: 100.83.178.99
+legacy_node: Mac Studio
 ---
 
 # 总体方案
 
 ## 01. 可行性结论
 
-方案对个人或小团队使用可行，但不是无条件可行。Mac Studio 的 CPU、内存和磁盘明显足够；真正的前置风险有四项：macOS 不是 GitLab 的运行系统，需要 Linux 容器运行时；Mac Studio 使用 Apple Silicon，GitLab 核心镜像的实际架构必须验证；ECS4 的管理 SSH 与 Git SSH 必须采用不冲突的入口规则；ECS4 公网带宽和家庭上行带宽必须能承载 Web、Git 和制品传输。
+方案对个人或小团队使用可行。GitLab 已迁移到 Proxmox VM `9002`，VM 的 CPU、内存和独立数据盘满足首期规模；Mac Studio 继续承担 Runner。当前风险集中在 VM 存储、家庭网络可用性、ECS4 公网入口和备份恢复链路。
 
-M1 是硬门槛。只有在 Mac Studio 上完成 Linux 运行时、GitLab 镜像、持久化目录、重启恢复和健康检查验证后，才允许进入正式部署。若原生 ARM64 镜像不可用，可以在小规模试用条件下验证 `linux/amd64` 兼容运行；验证不通过时，不能把方案标记为可交付。
+M1 是硬门槛。只有在 GitLab VM 上完成 Linux 运行时、镜像、持久化目录、重启恢复和健康检查验证，并确认 Mac Studio Runner 可回连后，才允许把迁移标记为正式部署。
 
 M3 也是公网访问门槛。只有在 ECS4 的带宽、端口、HTTPS、Web、HTTPS Git、SSH Git 和大流量 Git 转发均通过实测后，才允许把公网入口标记为可交付。
 
@@ -35,10 +38,10 @@ M3 也是公网访问门槛。只有在 ECS4 的带宽、端口、HTTPS、Web、
 
 | 冻结目标 | 实现方式 | 合格证据 |
 | --- | --- | --- |
-| 代码托管 | Mac Studio 运行单节点 GitLab，数据保存到独立持久化目录 | 私有项目、仓库和重启后数据 |
+| 代码托管 | Proxmox VM `9002` 运行单节点 GitLab，数据保存到 `/srv/gitlab` | 私有项目、仓库和重启后数据 |
 | 协作评审 | GitLab 项目权限、Issue 和 Merge Request | 测试账号权限记录、评审记录 |
-| CI/CD | GitLab Runner 执行 ARM64 优先的示例流水线 | 成功/失败/重跑日志、制品 |
-| 外部访问 | 公网用户的 Web、HTTPS Git 和 SSH Git 流量经 ECS4 公网反向代理；ECS5 自身通过 Tailscale 直连 Mac Studio | 域名、证书、SSH/HTTPS Git 记录和两条链路验证 |
+| CI/CD | Mac Studio GitLab Runner 执行示例流水线 | 成功/失败/重跑日志、制品 |
+| 外部访问 | 公网用户经 ECS4 公网反向代理；ECS1 至 ECS6 通过 Tailscale 直连 GitLab VM | 域名、证书、SSH/HTTPS Git 记录和两条链路验证 |
 | 可恢复运行 | GitLab 备份复制到 M5 内确定的独立备份目标，执行恢复和重启演练 | 备份文件、校验、恢复结果 |
 
 ## 03. 部署拓扑
@@ -50,53 +53,61 @@ M3 也是公网访问门槛。只有在 ECS4 的带宽、端口、HTTPS、Web、
 ECS4 公网入口
   |  Tailscale 私网
   v
-Mac Studio
+GitLab VM 9002
   |-- GitLab Web / Git HTTPS / Git SSH
-  |-- GitLab Runner
-  |-- GitLab 持久化数据
+  |-- /srv/gitlab 持久化数据
 
-ECS5 Agent
+Mac Studio
+  |-- GitLab Runner
+
+ECS1 至 ECS6 上的 Git
   |  Tailscale 点对点
   v
-Mac Studio GitLab SSH
+GitLab VM HTTPS / SSH
 ```
 
 ## 04. 节点职责
 
-### Mac Studio：核心服务节点
+### GitLab VM 9002：核心服务节点
 
-- 运行 Docker Desktop、Colima 或等效 Linux 容器运行时；不把 macOS 当作 GitLab 运行系统。
-- 运行 GitLab 单节点服务和主要 Runner。
+- 运行 GitLab CE `19.3.1` 单节点 Docker 容器。
+- 使用 `192.168.101.202` 作为家庭局域网地址，`100.83.178.99` 作为 Tailscale 服务地址。
 - 将配置、日志、仓库、数据库、制品和上传文件放进稳定的持久化目录。
-- 配置容器自动启动、健康检查、主机不自动睡眠和重启恢复。
+- 配置容器自动启动、健康检查和 VM 重启恢复。
 - 只允许本机和 Tailscale 私网访问 GitLab 管理端口。
 
-Mac Studio 已确认具备 24 核 CPU、64GB 内存和约 736GB 可用磁盘，资源满足首期条件。Apple Silicon 只保证主机资源充足，不自动保证每个 GitLab 或 CI 镜像原生支持 ARM64，因此架构验证属于 M1 和 M4 的必验项。
+VM 已调整为 `8 vCPU / 16GB RAM`，数据盘约 `1TB` 并挂载到 `/srv/gitlab`。旧 Mac Studio GitLab 保留为回退节点，不承担当前正式流量。
+
+### Mac Studio：Runner 节点
+
+- 运行 Docker Desktop 和 GitLab Runner `mac-studio-arm64`。
+- Runner URL 使用正式域名并连接当前 GitLab VM。
+- 保持接电、联网并关闭自动睡眠；不再作为当前 GitLab 数据主节点。
 
 ### ECS4：公网入口节点
 
 - 保留固定公网 IP，开放 80、443，以及 Git SSH 所需入口。
 - 运行 Caddy 或 Nginx，负责域名、HTTPS 证书和反向代理。
-- 通过 Tailscale 将所有外部 Web 和 Git HTTPS 请求转发到 Mac Studio。
-- 将所有外部 Git SSH 请求转发到 GitLab SSH 服务。
+- 通过 Tailscale 将所有外部 Web 和 Git HTTPS 请求转发到 GitLab VM。
+- 将所有外部 Git SSH 请求转发到 GitLab VM 的 `2222/tcp`。
 - 对 Git 大流量使用流式转发，不启用会把请求体或响应体落盘的缓存。
 - 不保存 GitLab 仓库和核心业务数据。
 
 ECS4 的管理员 SSH 和 Git SSH 必须分离：优先保留 22 端口用于管理，Git 使用独立端口并在域名或 Git 配置中声明；若使用同一端口，必须使用已经验证的 SSH 转发方案，不得靠未验证的端口复用假设交付。
 
-### ECS5：访问专用节点
+### ECS1 至 ECS6：访问专用节点
 
-- 在 ECS5 安装 Tailscale，并加入与 Mac Studio、ECS4 相同的 tailnet。
-- 只为 ECS5 自身 Agent 提供 GitLab SSH 私网直连。
-- 使用 ECS5 专属 GitLab 账号和 Ed25519 密钥，不与其他环境共用身份。
+- ECS1 至 ECS6 均安装 Tailscale，并加入与 GitLab VM、Mac Studio、ECS4 相同的 tailnet。
+- 各节点将 `git.whale-smart.com` 解析到 `100.83.178.99`，直接访问 GitLab VM 的 HTTPS `443` 和 SSH `2222`。
+- 每个环境使用自己的 GitLab 账号和 Ed25519 密钥，不与其他环境共用身份；ECS5 的 Agent 账号继续单独保留。
 - 不运行 GitLab 核心服务、Runner 或备份服务。
-- 不替代 ECS4 的公网入口，也不改变公网用户的访问路径。
+- 不替代 ECS4 的公网入口；公网用户仍由 ECS4 转发。
 
 ### 备份目标：roymacbook-pro
 
 - ECS5 不作为备份节点；它只提供自身 Agent 的 GitLab 私网直连。
 - `roymacbook-pro` 作为正式远端备份目标，Tailscale 地址为 `100.126.98.93`，接收目录为 `/Users/royzuo/gitlab-backups`。
-- Mac Studio 使用专用 Ed25519 密钥，通过 Tailscale SSH 复制；接收目录仅允许目标用户访问。
+- GitLab VM 使用专用 Ed25519 密钥，通过 Tailscale SSH 复制；接收目录仅允许目标用户访问。
 - Mac Studio 的 4TB LaCie 外置磁盘可保留为人工复制作业的本地第二副本，不承担唯一备份职责，也不阻断正式定时链路。
 - 备份目标支持校验、保留和恢复测试；ECS5 不参与。
 
@@ -106,10 +117,10 @@ ECS4 的管理员 SSH 和 Git SSH 必须分离：优先保留 22 端口用于管
 
 ### 私网连接
 
-1. Mac Studio、ECS4 和 ECS5 加入同一个 Tailscale 网络。
+1. Mac Studio、ECS1 至 ECS6 加入同一个 Tailscale 网络。
 2. 使用稳定的 Tailscale 地址或 MagicDNS 名称作为上游地址。
-3. ECS4 将公网 Web、HTTPS Git 和 Git SSH 请求转发到 Mac Studio，不使用家庭路由器端口映射。
-4. ECS5 将自身 Git SSH 请求直接发送到 Mac Studio，不经过 ECS4。
+3. ECS4 将公网 Web、HTTPS Git 和 Git SSH 请求转发到 GitLab VM，不使用家庭路由器端口映射。
+4. ECS1 至 ECS6 将自身 Git HTTPS/SSH 请求直接发送到 GitLab VM，不经过 ECS4。
 5. 备份链路不经过公网入口代理。
 6. Tailscale ACL 只允许节点之间访问所需端口。
 
@@ -117,6 +128,10 @@ ECS4 的管理员 SSH 和 Git SSH 必须分离：优先保留 22 端口用于管
 
 - 域名 A 记录指向 ECS4 公网 IP。
 - ECS4 完成 HTTPS 证书申请、续期和反向代理。
+- ECS1 至 ECS6 的本机解析统一为 `100.83.178.99 git.whale-smart.com`，因此它们访问 GitLab 时直接通过各自的 `tailscale0` 到 GitLab VM，不经过 ECS4。
+- GitLab VM 在 Tailscale 地址提供 `443/tcp` HTTPS，并反代到 GitLab 容器；Git SSH 继续使用 `2222/tcp`。当前内部路径为 `ECS:443 -> 100.83.178.99:443`、`ECS:2222 -> 100.83.178.99:2222`。
+- 公网 DNS 仍指向 ECS4。外部用户继续走 `ECS4:443 -> 100.83.178.99:443`，ECS4 的上游连接通过 Tailscale；ECS4 的默认互联网流量不改变。
+- ECS4 的本机解析也统一为 `100.83.178.99`，不再绕行自己的公网地址。正式域名、TLS SNI、Host header 和 GitLab 生成的克隆地址保持一致。
 - GitLab 外部 URL 固定使用正式域名，不使用公网 IP 作为长期地址。
 - HTTPS Git 使用 GitLab 标准 HTTPS 入口。
 - SSH Git 使用独立端口，例如 `git clone ssh://git@domain:2222/group/project.git`；最终端口以 M3 的实际验证结果为准。
@@ -125,7 +140,7 @@ ECS4 的管理员 SSH 和 Git SSH 必须分离：优先保留 22 端口用于管
 
 ### 安全边界
 
-- Mac Studio 不开放公网端口。
+- GitLab VM 不开放公网端口。
 - ECS4 管理 SSH 限制可信来源，Git SSH 只转发到 GitLab。
 - GitLab 首次登录后修改管理员密码并启用双因素认证。
 - Token、密码、私钥和家庭网络凭据不进入仓库。
