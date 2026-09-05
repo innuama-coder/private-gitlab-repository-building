@@ -4,7 +4,8 @@ stages:
 
 test:
   stage: test
-  image: alpine:3.20
+  tags:
+    - mac-studio-shell
   script:
     - test -f current-task/six-elements.md
     - test -f current-task/overall-solution.md
@@ -18,7 +19,8 @@ test:
 
 build:
   stage: build
-  image: alpine:3.20
+  tags:
+    - mac-studio-shell
   script:
     - mkdir -p build
     - tar -czf build/task-documents.tar.gz current-task artifacts
